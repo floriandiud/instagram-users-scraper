@@ -127,7 +127,6 @@ function buildCTABtns(){
 }
 
 let sourceGlobal: string | null = null;
-
 function processResponseUsers(
     dataGraphQL: any,
     source?: string
@@ -316,6 +315,21 @@ function parseResponse(
     }
 }
 
+const profileUsernamesCache: {[key: string]: string} = {}
+async function quickProfileIdLookup(profileId: string): Promise<string | null> {
+    if(typeof(profileUsernamesCache[profileId])==="string"){
+        return profileUsernamesCache[profileId]
+    }
+    // Try to find in storage
+    const instaProfile = await memberListStore.getElem(profileId)
+    if(instaProfile){
+        // Add in quick storage and return
+        profileUsernamesCache[profileId] = instaProfile.username;
+        return instaProfile.username
+    }
+    return null
+}
+
 function main(): void {
     buildCTABtns()
 
@@ -339,12 +353,36 @@ function main(): void {
                     const resultFollowers = regExMatchFollowers.exec(this.responseURL);
                     if(resultFollowers){
                         const profileId = resultFollowers?.groups?.profile_id;
-                        parseResponse(this.responseText, 'users', `followers of ${profileId}`);
+                        if(profileId){
+                            quickProfileIdLookup(profileId).then((username)=>{
+                                let sourceClean = `followers of ${profileId}`;
+                                if(username){
+                                    sourceClean = `followers of ${profileId} (${username})`
+                                }
+                                parseResponse(
+                                    this.responseText,
+                                    'users',
+                                    sourceClean
+                                );
+                            });
+                        }
                     }else{
                         const resultFollowing = regExMatchFollowing.exec(this.responseURL);
                         if(resultFollowing){
                             const profileId = resultFollowing?.groups?.profile_id;
-                            parseResponse(this.responseText, 'users', `following of ${profileId}`);
+                            if(profileId){
+                                quickProfileIdLookup(profileId).then((username)=>{
+                                    let sourceClean = `following of ${profileId}`;
+                                    if(username){
+                                        sourceClean = `following of ${profileId} (${username})`
+                                    }
+                                    parseResponse(
+                                        this.responseText,
+                                        'users',
+                                        sourceClean
+                                    );
+                                })
+                            }
                         }
                     }
                 }

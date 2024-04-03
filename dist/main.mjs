@@ -1009,6 +1009,18 @@ function parseResponse(dataRaw, responseType, source) {
     }
   }
 }
+const profileUsernamesCache = {};
+async function quickProfileIdLookup(profileId) {
+  if (typeof profileUsernamesCache[profileId] === "string") {
+    return profileUsernamesCache[profileId];
+  }
+  const instaProfile = await memberListStore.getElem(profileId);
+  if (instaProfile) {
+    profileUsernamesCache[profileId] = instaProfile.username;
+    return instaProfile.username;
+  }
+  return null;
+}
 function main() {
   buildCTABtns();
   const regExMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//gi;
@@ -1026,12 +1038,36 @@ function main() {
           const resultFollowers = regExMatchFollowers.exec(this.responseURL);
           if (resultFollowers) {
             const profileId = (_a = resultFollowers == null ? void 0 : resultFollowers.groups) == null ? void 0 : _a.profile_id;
-            parseResponse(this.responseText, "users", `followers of ${profileId}`);
+            if (profileId) {
+              quickProfileIdLookup(profileId).then((username) => {
+                let sourceClean = `followers of ${profileId}`;
+                if (username) {
+                  sourceClean = `followers of ${profileId} (${username})`;
+                }
+                parseResponse(
+                  this.responseText,
+                  "users",
+                  sourceClean
+                );
+              });
+            }
           } else {
             const resultFollowing = regExMatchFollowing.exec(this.responseURL);
             if (resultFollowing) {
               const profileId = (_b = resultFollowing == null ? void 0 : resultFollowing.groups) == null ? void 0 : _b.profile_id;
-              parseResponse(this.responseText, "users", `following of ${profileId}`);
+              if (profileId) {
+                quickProfileIdLookup(profileId).then((username) => {
+                  let sourceClean = `following of ${profileId}`;
+                  if (username) {
+                    sourceClean = `following of ${profileId} (${username})`;
+                  }
+                  parseResponse(
+                    this.responseText,
+                    "users",
+                    sourceClean
+                  );
+                });
+              }
             }
           }
         }
