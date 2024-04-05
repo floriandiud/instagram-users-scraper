@@ -779,6 +779,7 @@ class FBStorage extends ListStorage {
       "Link",
       "Full Name",
       "Is Private",
+      "Location",
       "Picture Url",
       "Source"
     ];
@@ -795,6 +796,7 @@ class FBStorage extends ListStorage {
       link,
       item.fullName,
       isPrivateClean,
+      item.location ? item.location : "",
       item.pictureUrl,
       item.source ? item.source : ""
     ];
@@ -899,9 +901,38 @@ function processResponseUsers(dataGraphQL, source) {
     });
   });
 }
+const locationNameCache = {};
+function saveLocationName(locationId, locationName) {
+  locationNameCache[locationId] = locationName;
+}
+function sourceString(sourceType, value) {
+  switch (sourceType) {
+    case "location":
+      if (value) {
+        if (locationNameCache[value]) {
+          return `post authors (loc: ${locationNameCache[value]})`;
+        } else {
+          return `post authors (loc: ${value})`;
+        }
+      } else {
+        return `post authors`;
+      }
+    case "tag":
+      if (value) {
+        return `post authors #${value}`;
+      } else {
+        return `post authors`;
+      }
+    case "followers":
+      return `followers of ${value}`;
+    case "following":
+      return `following of ${value}`;
+  }
+}
 function processResponse(dataGraphQL, source) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
   let data;
+  let sourceImproved = null;
   if (dataGraphQL == null ? void 0 : dataGraphQL.data) {
     sourceGlobal = (_a = dataGraphQL == null ? void 0 : dataGraphQL.data) == null ? void 0 : _a.name;
     data = [];
@@ -912,13 +943,24 @@ function processResponse(dataGraphQL, source) {
       data.push(...(_i = (_h = dataGraphQL == null ? void 0 : dataGraphQL.data) == null ? void 0 : _h.top) == null ? void 0 : _i.sections);
     }
   } else if (dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) {
-    sourceGlobal = (_k = (_j = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _j.location_info) == null ? void 0 : _k.name;
-    data = [];
-    if ((_m = (_l = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _l.ranked) == null ? void 0 : _m.sections) {
-      data.push(...(_o = (_n = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _n.ranked) == null ? void 0 : _o.sections);
+    if ((_k = (_j = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _j.location_info) == null ? void 0 : _k.name) {
+      const locationName = dataGraphQL.native_location_data.location_info.name;
+      saveLocationName(
+        (_m = (_l = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _l.location_info) == null ? void 0 : _m.location_id,
+        locationName
+      );
+      sourceImproved = sourceString(
+        "location",
+        (_o = (_n = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _n.location_info) == null ? void 0 : _o.location_id
+      );
+      sourceGlobal = sourceImproved;
     }
-    if ((_q = (_p = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _p.recent) == null ? void 0 : _q.sections) {
-      data.push(...(_s = (_r = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _r.recent) == null ? void 0 : _s.sections);
+    data = [];
+    if ((_q = (_p = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _p.ranked) == null ? void 0 : _q.sections) {
+      data.push(...(_s = (_r = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _r.ranked) == null ? void 0 : _s.sections);
+    }
+    if ((_u = (_t = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _t.recent) == null ? void 0 : _u.sections) {
+      data.push(...(_w = (_v = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _v.recent) == null ? void 0 : _w.sections);
     }
   } else if (dataGraphQL == null ? void 0 : dataGraphQL.sections) {
     data = dataGraphQL == null ? void 0 : dataGraphQL.sections;
@@ -936,7 +978,9 @@ function processResponse(dataGraphQL, source) {
   if (toCheck.length === 0) {
     return;
   }
+  let sourceClean = sourceImproved || source || sourceGlobal;
   const membersData = toCheck.map((node) => {
+    var _a2, _b2;
     const media = node == null ? void 0 : node.media;
     if (!media) {
       return null;
@@ -952,6 +996,10 @@ function processResponse(dataGraphQL, source) {
       is_private,
       profile_pic_url
     } = owner;
+    let location = null;
+    if ((_a2 = media == null ? void 0 : media.location) == null ? void 0 : _a2.name) {
+      location = (_b2 = media == null ? void 0 : media.location) == null ? void 0 : _b2.name;
+    }
     const result = {
       profileId: pk,
       username,
@@ -959,7 +1007,9 @@ function processResponse(dataGraphQL, source) {
       isPrivate: is_private,
       pictureUrl: profile_pic_url
     };
-    const sourceClean = source || sourceGlobal;
+    if (location) {
+      result.location = location;
+    }
     if (sourceClean) {
       result.source = sourceClean;
     }
@@ -975,7 +1025,7 @@ function processResponse(dataGraphQL, source) {
   memberListStore.addElems(toAdd, false, groupId).then((added) => {
     updateConter();
     logsTracker.addHistoryLog({
-      label: source ? `Added ${source}` : "Added items",
+      label: sourceClean ? `Added ${sourceClean}` : "Added items",
       numberItems: added,
       groupId,
       cancellable: false
@@ -1003,9 +1053,17 @@ function parseResponse(dataRaw, responseType, source) {
   }
   for (let j = 0; j < dataGraphQL.length; j++) {
     if (responseType == "section") {
-      processResponse(dataGraphQL[j], source);
+      try {
+        processResponse(dataGraphQL[j], source);
+      } catch (err) {
+        console.error(err);
+      }
     } else if (responseType == "users") {
-      processResponseUsers(dataGraphQL[j], source);
+      try {
+        processResponseUsers(dataGraphQL[j], source);
+      } catch (err) {
+        console.error(err);
+      }
     }
   }
 }
@@ -1023,48 +1081,92 @@ async function quickProfileIdLookup(profileId) {
 }
 function main() {
   buildCTABtns();
-  const regExMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//gi;
-  const regExMatch2 = /\/api\/v1\/locations\/web_info\//gi;
+  const regExTagsMatch = /\/api\/v1\/tags\/web_info\/\?tag_name=(?<tag_name>[\w|_|-]+)/gi;
+  const regExLocationMatch = /\/api\/v1\/locations\/web_info\/?location_id=(?<location_id>[\w|_|-]+)/gi;
+  const regExLocationFetchMore = /\/api\/v1\/locations\/(?<location_id>[\w|\d]+)\/sections\//gi;
+  const regExFetchMoreMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//gi;
   const regExMatchFollowers = /\/api\/v1\/friendships\/(?<profile_id>\d+)\/followers\//i;
   const regExMatchFollowing = /\/api\/v1\/friendships\/(?<profile_id>\d+)\/following\//i;
   let send = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function() {
     this.addEventListener("readystatechange", function() {
-      var _a, _b;
+      var _a, _b, _c, _d, _e;
       if (this.readyState === 4) {
-        if (this.responseURL.match(regExMatch) || this.responseURL.match(regExMatch2) || this.responseURL.includes("/api/v1/tags/web_info")) {
+        if (this.responseURL.includes("/api/v1/tags/web_info")) {
+          let tagName;
+          const tagResult = regExTagsMatch.exec(this.responseURL);
+          if (tagResult) {
+            if ((_a = tagResult == null ? void 0 : tagResult.groups) == null ? void 0 : _a.tag_name) {
+              tagName = tagResult.groups.tag_name;
+            }
+          }
+          parseResponse(this.responseText, "section", sourceString(
+            "tag",
+            tagName
+          ));
+        } else if (this.responseURL.includes("/api/v1/locations/web_info")) {
+          let locationId;
+          const locationRes = regExLocationMatch.exec(this.responseURL);
+          if (locationRes) {
+            if ((_b = locationRes == null ? void 0 : locationRes.groups) == null ? void 0 : _b.location_id) {
+              locationId = locationRes.groups.location_id;
+            }
+          }
+          parseResponse(this.responseText, "section", sourceString(
+            "location",
+            locationId
+          ));
+        } else if (this.responseURL.match(regExLocationFetchMore)) {
+          let locationId;
+          const locationRes = regExLocationFetchMore.exec(this.responseURL);
+          if (locationRes) {
+            if ((_c = locationRes == null ? void 0 : locationRes.groups) == null ? void 0 : _c.location_id) {
+              locationId = locationRes.groups.location_id;
+            }
+          }
+          parseResponse(this.responseText, "section", sourceString(
+            "location",
+            locationId
+          ));
+        } else if (this.responseURL.match(regExFetchMoreMatch) || this.responseURL.includes("/api/v1/tags/web_info")) {
           parseResponse(this.responseText, "section", "post authors");
         } else {
           const resultFollowers = regExMatchFollowers.exec(this.responseURL);
           if (resultFollowers) {
-            const profileId = (_a = resultFollowers == null ? void 0 : resultFollowers.groups) == null ? void 0 : _a.profile_id;
+            const profileId = (_d = resultFollowers == null ? void 0 : resultFollowers.groups) == null ? void 0 : _d.profile_id;
             if (profileId) {
               quickProfileIdLookup(profileId).then((username) => {
-                let sourceClean = `followers of ${profileId}`;
+                let profileInfo = `${profileId}`;
                 if (username) {
-                  sourceClean = `followers of ${profileId} (${username})`;
+                  profileInfo = `${profileId} (${username})`;
                 }
                 parseResponse(
                   this.responseText,
                   "users",
-                  sourceClean
+                  sourceString(
+                    "followers",
+                    profileInfo
+                  )
                 );
               });
             }
           } else {
             const resultFollowing = regExMatchFollowing.exec(this.responseURL);
             if (resultFollowing) {
-              const profileId = (_b = resultFollowing == null ? void 0 : resultFollowing.groups) == null ? void 0 : _b.profile_id;
+              const profileId = (_e = resultFollowing == null ? void 0 : resultFollowing.groups) == null ? void 0 : _e.profile_id;
               if (profileId) {
                 quickProfileIdLookup(profileId).then((username) => {
-                  let sourceClean = `following of ${profileId}`;
+                  let profileInfo = `${profileId}`;
                   if (username) {
-                    sourceClean = `following of ${profileId} (${username})`;
+                    profileInfo = `${profileId} (${username})`;
                   }
                   parseResponse(
                     this.responseText,
                     "users",
-                    sourceClean
+                    sourceString(
+                      "following",
+                      profileInfo
+                    )
                   );
                 });
               }

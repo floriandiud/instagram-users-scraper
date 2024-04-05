@@ -15,6 +15,7 @@ interface InstaMember {
     username: string
     fullName: string
     isPrivate: boolean
+    location?: string
     source?: string
 }
 class FBStorage extends ListStorage<InstaMember> {
@@ -25,6 +26,7 @@ class FBStorage extends ListStorage<InstaMember> {
             'Link',
             'Full Name',
             'Is Private',
+            'Location',
             'Picture Url',
             'Source'
         ]
@@ -42,6 +44,7 @@ class FBStorage extends ListStorage<InstaMember> {
             link,
             item.fullName,
             isPrivateClean,
+            item.location ? item.location : "",
             item.pictureUrl,
             item.source ? item.source : ""
         ]
@@ -180,9 +183,43 @@ function processResponseUsers(
     })
 }
 
+const locationNameCache: {[key: string]: string} = {}
+function saveLocationName(locationId: string, locationName: string){
+    locationNameCache[locationId] = locationName;
+}
+
+function sourceString(
+    sourceType: 'location' | 'tag' | 'followers' | 'following',
+    value?: string
+){
+    switch(sourceType){
+        case 'location':
+            if(value){
+                if(locationNameCache[value]){
+                    return `post authors (loc: ${locationNameCache[value]})`
+                }else{
+                    return `post authors (loc: ${value})`
+                }
+            }else{
+                return `post authors`
+            }
+        case 'tag':
+            if(value){
+                return `post authors #${value}`
+            }else{
+                return `post authors`
+            }
+        case 'followers':
+            return `followers of ${value}`
+        case 'following':
+            return `following of ${value}`
+    }
+}
+
 function processResponse(dataGraphQL: any, source?: string): void{
     // Only look for GraphQL responses
     let data: any[];
+    let sourceImproved: string | null = null;
 
     if(dataGraphQL?.data){ // Tags
         sourceGlobal = dataGraphQL?.data?.name;
@@ -194,7 +231,18 @@ function processResponse(dataGraphQL: any, source?: string): void{
             data.push(...dataGraphQL?.data?.top?.sections)
         }
     } else if(dataGraphQL?.native_location_data){ // Place
-        sourceGlobal = dataGraphQL?.native_location_data?.location_info?.name;
+        if(dataGraphQL?.native_location_data?.location_info?.name){
+            const locationName = dataGraphQL.native_location_data.location_info.name
+            saveLocationName(
+                dataGraphQL?.native_location_data?.location_info?.location_id,
+                locationName
+            )
+            sourceImproved = sourceString(
+                "location",
+                dataGraphQL?.native_location_data?.location_info?.location_id
+            )
+            sourceGlobal = sourceImproved;
+        }
         data = []
         if(dataGraphQL?.native_location_data?.ranked?.sections){
             data.push(...dataGraphQL?.native_location_data?.ranked?.sections)
@@ -223,6 +271,8 @@ function processResponse(dataGraphQL: any, source?: string): void{
         return;
     }
 
+    let sourceClean = sourceImproved || source || sourceGlobal;
+
     const membersData = toCheck.map((node)=>{
         const media = node?.media;
         if(!media){
@@ -242,6 +292,12 @@ function processResponse(dataGraphQL: any, source?: string): void{
             profile_pic_url
         } = owner;
 
+        // Add Location info
+        let location: string | null = null;
+        if(media?.location?.name){
+            location = media?.location?.name;
+        }
+
         const result: InstaMember = {
             profileId: pk,
             username: username,
@@ -249,7 +305,10 @@ function processResponse(dataGraphQL: any, source?: string): void{
             isPrivate: is_private,
             pictureUrl: profile_pic_url
         }
-        const sourceClean = source || sourceGlobal;
+        if(location){
+            result.location = location
+        }
+        
         if(sourceClean){
             result.source = sourceClean;
         }
@@ -269,7 +328,7 @@ function processResponse(dataGraphQL: any, source?: string): void{
         updateConter();
 
         logsTracker.addHistoryLog({
-            label: source ? `Added ${source}` : 'Added items',
+            label: sourceClean ? `Added ${sourceClean}` : 'Added items',
             numberItems: added,
             groupId: groupId,
             cancellable: false
@@ -308,9 +367,17 @@ function parseResponse(
 
     for(let j=0; j<dataGraphQL.length; j++){
         if(responseType == "section"){
-            processResponse(dataGraphQL[j], source)
+            try{
+                processResponse(dataGraphQL[j], source)
+            }catch(err){
+                console.error(err)
+            }
         }else if(responseType == "users"){
-            processResponseUsers(dataGraphQL[j], source)
+            try{
+                processResponseUsers(dataGraphQL[j], source)
+            }catch(err){
+                console.error(err)
+            }
         }
     }
 }
@@ -330,12 +397,20 @@ async function quickProfileIdLookup(profileId: string): Promise<string | null> {
     return null
 }
 
+
 function main(): void {
     buildCTABtns()
 
     // Watch API calls to find GraphQL responses to parse
-    const regExMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//gi
-    const regExMatch2 = /\/api\/v1\/locations\/web_info\//gi;
+    const regExTagsMatch = /\/api\/v1\/tags\/web_info\/\?tag_name=(?<tag_name>[\w|_|-]+)/gi;
+    const regExLocationMatch = /\/api\/v1\/locations\/web_info\/?location_id=(?<location_id>[\w|_|-]+)/gi;
+    
+
+    // FetchMore
+    const regExLocationFetchMore = /\/api\/v1\/locations\/(?<location_id>[\w|\d]+)\/sections\//gi
+    // GenericMore
+    const regExFetchMoreMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//gi
+
     const regExMatchFollowers = /\/api\/v1\/friendships\/(?<profile_id>\d+)\/followers\//i; // Remove g flag to reset index
     const regExMatchFollowing = /\/api\/v1\/friendships\/(?<profile_id>\d+)\/following\//i; // Remove g flag to reset index
     let send = XMLHttpRequest.prototype.send;
@@ -343,9 +418,46 @@ function main(): void {
         this.addEventListener('readystatechange', function() {
 
             if (this.readyState === 4) {
-                if(
-                    this.responseURL.match(regExMatch) ||
-                    this.responseURL.match(regExMatch2) ||
+                if(this.responseURL.includes('/api/v1/tags/web_info')){ // Tag
+                    let tagName: undefined| string;
+                    const tagResult = regExTagsMatch.exec(this.responseURL);
+                    if(tagResult){
+                        if(tagResult?.groups?.tag_name){
+                            tagName = tagResult.groups.tag_name;
+                        }
+                    }
+                    parseResponse(this.responseText, 'section', sourceString(
+                        "tag",
+                        tagName
+                    ));
+                } else if(this.responseURL.includes('/api/v1/locations/web_info')){ // Location
+                    let locationId: undefined | string;
+                    const locationRes = regExLocationMatch.exec(this.responseURL);
+                    if(locationRes){
+                        if(locationRes?.groups?.location_id){
+                            locationId = locationRes.groups.location_id
+                        }
+                    }
+                    parseResponse(this.responseText, 'section', sourceString(
+                        "location",
+                        locationId
+                    ));
+                } else if(
+                    this.responseURL.match(regExLocationFetchMore) // Location Fetch More
+                ){
+                    let locationId: undefined | string;
+                    const locationRes = regExLocationFetchMore.exec(this.responseURL);
+                    if(locationRes){
+                        if(locationRes?.groups?.location_id){
+                            locationId = locationRes.groups.location_id
+                        }
+                    }
+                    parseResponse(this.responseText, 'section', sourceString(
+                        "location",
+                        locationId
+                    ));
+                } else if(
+                    this.responseURL.match(regExFetchMoreMatch) ||
                     this.responseURL.includes('/api/v1/tags/web_info')
                 ){
                     parseResponse(this.responseText, 'section', 'post authors');
@@ -355,14 +467,17 @@ function main(): void {
                         const profileId = resultFollowers?.groups?.profile_id;
                         if(profileId){
                             quickProfileIdLookup(profileId).then((username)=>{
-                                let sourceClean = `followers of ${profileId}`;
+                                let profileInfo = `${profileId}`;
                                 if(username){
-                                    sourceClean = `followers of ${profileId} (${username})`
+                                    profileInfo = `${profileId} (${username})`
                                 }
                                 parseResponse(
                                     this.responseText,
                                     'users',
-                                    sourceClean
+                                    sourceString(
+                                        "followers",
+                                        profileInfo
+                                    )
                                 );
                             });
                         }
@@ -372,14 +487,17 @@ function main(): void {
                             const profileId = resultFollowing?.groups?.profile_id;
                             if(profileId){
                                 quickProfileIdLookup(profileId).then((username)=>{
-                                    let sourceClean = `following of ${profileId}`;
+                                    let profileInfo = `${profileId}`;
                                     if(username){
-                                        sourceClean = `following of ${profileId} (${username})`
+                                        profileInfo = `${profileId} (${username})`
                                     }
                                     parseResponse(
                                         this.responseText,
                                         'users',
-                                        sourceClean
+                                        sourceString(
+                                            "following",
+                                            profileInfo
+                                        )
                                     );
                                 })
                             }
