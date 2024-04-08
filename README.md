@@ -1,4 +1,4 @@
-# Instagram Users Scraper
+# Free Instagram Scraper (Followers, Following list, Post authors)
 
 Script to scrape Instagram users and export them into a CSV file. This Instagram user exporter works in the browser, without installing an extension or using a proxy. Just copy-paste the script into your Chrome console.
 
@@ -14,10 +14,10 @@ What can be extracted:
 
  1. Go to Instagram
  1. Open Chrome Developer Console
- 1. Copy Paste the following code into the console. It will add a "Download 0 users" button. **Important: Copy/Paste before moving to any tag, location, profile page**
+ 1. Copy Paste the following code into the console. It will add a "Download 0 users" button. **Important: Copy/Paste before moving to any tag, location, or profile page**
  1. Navigate to one of the following
-    - The modal listing a user followers
-    - The modal listing a user following
+    - The modal listing the Instagram followers
+    - The modal listing the Instagram following users
     - A Location or Tag page
  1. Scroll to load new users that will get scraped by the script. The button counter increases with new users scraped.
  1. Once done, click on the "Download X users" button to download the generated CSV file
@@ -31,7 +31,7 @@ What can be extracted:
 - **Profile Id**: Unique Instagram identifier. Multi-digit number.
 - **Username**: Instagram username.
 - **Link**: Instagram profile url. In the format https://www.instagram.com/{{username}}
-- **Full Name**: Instagram user full name
+- **Full Name**: Instagram user's full name
 - **Is Private**: Is the profile private
 - **Location**: The location name for post author scraping. When available.
 - **Picture Url**: Instagram user profile picture
@@ -62,7 +62,7 @@ Select the "Console" tab and copy-paste the script from above. Instagram shows a
 ![Paste the script](statics/copy-paste-script.png)
 
 
-**Scrappe users**
+**Scrape Instagram Followers, Following users, and Post authors**
 
 The script intercepts users' data as they are loaded by Instagram to be displayed. The script scrapes "Followers", "Following", and tag or location pages.
 
@@ -114,3 +114,8 @@ Follow our step-by-step tutorial to [scrape Instagram users and enrich their pro
 yarn install
 yarn build
 ```
+
+
+## Other scrapers
+
+- [Scrape Facebook group members](https://github.com/floriandiud/facebook-group-members-scraper)
