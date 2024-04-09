@@ -569,7 +569,7 @@ const canvasStyles = [
   "position: fixed;",
   "top: 0;",
   "left: 0;",
-  "z-index: 10;",
+  "z-index: 10000;",
   "width: 100%;",
   "height: 100%;",
   "pointer-events: none;"
@@ -680,7 +680,8 @@ const historyPanelStyles = [
   "border-radius: 8px;",
   "font-family: monospace;",
   "font-size: 16px;",
-  "box-shadow: rgba(42, 35, 66, 0.2) 0 2px 2px,rgba(45, 35, 66, 0.2) 0 7px 13px -4px;"
+  "box-shadow: rgba(42, 35, 66, 0.2) 0 2px 2px,rgba(45, 35, 66, 0.2) 0 7px 13px -4px;",
+  "color: #2f2f2f;"
 ];
 const historyUlStyles = [
   "list-style: none;",
