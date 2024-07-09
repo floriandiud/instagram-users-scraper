@@ -216,6 +216,7 @@ function sourceString(
     }
 }
 
+
 function processResponse(dataGraphQL: any, source?: string): void{
     // Only look for GraphQL responses
     let data: any[];
@@ -257,7 +258,7 @@ function processResponse(dataGraphQL: any, source?: string): void{
         return;
     }
 
-    const toCheck: any[] = []
+    const toCheck: any[] = [];
     
     data.forEach(sectionNode=>{
         const mediaNodes = sectionNode?.layout_content?.medias
@@ -336,9 +337,79 @@ function processResponse(dataGraphQL: any, source?: string): void{
     })
 }
 
+function parseResponseExplore(
+    dataGraphQL: any
+){
+    console.log(dataGraphQL);
+
+    const items: any[] = dataGraphQL?.sectional_items
+    if(!items){
+        return
+    }
+
+    const toCheck: any[] = [];
+
+    items.forEach((item: any)=>{
+        if(item?.layout_content?.fill_items){
+            toCheck.push(...item?.layout_content?.fill_items)
+        }
+    })
+    if(toCheck.length===0){
+        return;
+    }
+
+    const membersData = toCheck.map((node)=>{
+        const media = node?.media;
+        if(!media){
+            return null
+        }
+        const owner = media?.owner;
+
+        // User Data
+        const {
+            pk,
+            username,
+            full_name,
+            is_private,
+            profile_pic_url
+        } = owner;
+
+        const result: InstaMember = {
+            profileId: pk,
+            username: username,
+            fullName: full_name,
+            isPrivate: is_private,
+            pictureUrl: profile_pic_url,
+            source: "Explore"
+        }
+
+        return result;
+    })
+
+
+    const toAdd: [string, InstaMember][] = []
+    membersData.forEach(memberData=>{
+        if(memberData){
+            toAdd.push([memberData.profileId, memberData])
+        }
+    })
+
+    const groupId = randomString(10)
+    memberListStore.addElems(toAdd, false, groupId).then((added)=>{
+        updateConter();
+
+        logsTracker.addHistoryLog({
+            label: 'Added items from explore',
+            numberItems: added,
+            groupId: groupId,
+            cancellable: false
+        })
+    })
+}
+
 function parseResponse(
     dataRaw: string,
-    responseType: 'users' | 'section',
+    responseType: 'users' | 'section' | 'explore',
     source?: string
 ): void{
     let dataGraphQL: Array<any> = [];
@@ -375,6 +446,12 @@ function parseResponse(
         }else if(responseType == "users"){
             try{
                 processResponseUsers(dataGraphQL[j], source)
+            }catch(err){
+                console.error(err)
+            }
+        }else if(responseType == "explore"){
+            try{
+                parseResponseExplore(dataGraphQL[j])
             }catch(err){
                 console.error(err)
             }
@@ -461,6 +538,8 @@ function main(): void {
                     this.responseURL.includes('/api/v1/tags/web_info')
                 ){
                     parseResponse(this.responseText, 'section', 'post authors');
+                } else if(this.responseURL.includes('/api/v1/discover/web/explore_grid')){ // Explore
+                    parseResponse(this.responseText, 'explore', 'explore')
                 }else {
                     const resultFollowers = regExMatchFollowers.exec(this.responseURL);
                     if(resultFollowers){

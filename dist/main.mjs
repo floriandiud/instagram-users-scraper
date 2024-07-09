@@ -1033,6 +1033,62 @@ function processResponse(dataGraphQL, source) {
     });
   });
 }
+function parseResponseExplore(dataGraphQL) {
+  console.log(dataGraphQL);
+  const items = dataGraphQL == null ? void 0 : dataGraphQL.sectional_items;
+  if (!items) {
+    return;
+  }
+  const toCheck = [];
+  items.forEach((item) => {
+    var _a, _b;
+    if ((_a = item == null ? void 0 : item.layout_content) == null ? void 0 : _a.fill_items) {
+      toCheck.push(...(_b = item == null ? void 0 : item.layout_content) == null ? void 0 : _b.fill_items);
+    }
+  });
+  if (toCheck.length === 0) {
+    return;
+  }
+  const membersData = toCheck.map((node) => {
+    const media = node == null ? void 0 : node.media;
+    if (!media) {
+      return null;
+    }
+    const owner = media == null ? void 0 : media.owner;
+    const {
+      pk,
+      username,
+      full_name,
+      is_private,
+      profile_pic_url
+    } = owner;
+    const result = {
+      profileId: pk,
+      username,
+      fullName: full_name,
+      isPrivate: is_private,
+      pictureUrl: profile_pic_url,
+      source: "Explore"
+    };
+    return result;
+  });
+  const toAdd = [];
+  membersData.forEach((memberData) => {
+    if (memberData) {
+      toAdd.push([memberData.profileId, memberData]);
+    }
+  });
+  const groupId = randomString(10);
+  memberListStore.addElems(toAdd, false, groupId).then((added) => {
+    updateConter();
+    logsTracker.addHistoryLog({
+      label: "Added items from explore",
+      numberItems: added,
+      groupId,
+      cancellable: false
+    });
+  });
+}
 function parseResponse(dataRaw, responseType, source) {
   let dataGraphQL = [];
   try {
@@ -1062,6 +1118,12 @@ function parseResponse(dataRaw, responseType, source) {
     } else if (responseType == "users") {
       try {
         processResponseUsers(dataGraphQL[j], source);
+      } catch (err) {
+        console.error(err);
+      }
+    } else if (responseType == "explore") {
+      try {
+        parseResponseExplore(dataGraphQL[j]);
       } catch (err) {
         console.error(err);
       }
@@ -1131,6 +1193,8 @@ function main() {
           ));
         } else if (this.responseURL.match(regExFetchMoreMatch) || this.responseURL.includes("/api/v1/tags/web_info")) {
           parseResponse(this.responseText, "section", "post authors");
+        } else if (this.responseURL.includes("/api/v1/discover/web/explore_grid")) {
+          parseResponse(this.responseText, "explore", "explore");
         } else {
           const resultFollowers = regExMatchFollowers.exec(this.responseURL);
           if (resultFollowers) {
