@@ -197,6 +197,8 @@ function sourceString(
             if(value){
                 if(locationNameCache[value]){
                     return `post authors (loc: ${locationNameCache[value]})`
+                }else if(typeof(value)==="string" && value.startsWith('%23')){
+                    return `post authors (loc: ${value.replace('%23', '')})`
                 }else{
                     return `post authors (loc: ${value})`
                 }
@@ -205,7 +207,11 @@ function sourceString(
             }
         case 'tag':
             if(value){
-                return `post authors #${value}`
+                let valueClean = value;
+                if(typeof(value)==="string" && value.startsWith('%23')){
+                    valueClean = value.replace('%23', '');
+                }
+                return `post authors #${valueClean}`
             }else{
                 return `post authors`
             }
@@ -231,6 +237,8 @@ function processResponse(dataGraphQL: any, source?: string): void{
         if(dataGraphQL?.data?.top?.sections){
             data.push(...dataGraphQL?.data?.top?.sections)
         }
+    } else if(dataGraphQL?.media_grid?.sections){ // Place/Tag
+        data = dataGraphQL?.media_grid?.sections;
     } else if(dataGraphQL?.native_location_data){ // Place
         if(dataGraphQL?.native_location_data?.location_info?.name){
             const locationName = dataGraphQL.native_location_data.location_info.name
@@ -340,8 +348,6 @@ function processResponse(dataGraphQL: any, source?: string): void{
 function parseResponseExplore(
     dataGraphQL: any
 ){
-    console.log(dataGraphQL);
-
     const items: any[] = dataGraphQL?.sectional_items
     if(!items){
         return
@@ -481,10 +487,12 @@ function main(): void {
     // Watch API calls to find GraphQL responses to parse
     const regExTagsMatch = /\/api\/v1\/tags\/web_info\/\?tag_name=(?<tag_name>[\w|_|-]+)/gi;
     const regExLocationMatch = /\/api\/v1\/locations\/web_info\/?location_id=(?<location_id>[\w|_|-]+)/gi;
-    
 
+    const regExTagNewMatch = /\/api\/v1\/fbsearch\/web\/top_serp\/\?(?:[\w|_|-|&|=]+)query=(?<tag_name>[\w|_|-|%]+)/gi;
+    
     // FetchMore
     const regExLocationFetchMore = /\/api\/v1\/locations\/(?<location_id>[\w|\d]+)\/sections\//gi
+
     // GenericMore
     const regExFetchMoreMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//gi
 
@@ -498,6 +506,8 @@ function main(): void {
                 if(this.responseURL.includes('/api/v1/tags/web_info')){ // Tag
                     let tagName: undefined| string;
                     const tagResult = regExTagsMatch.exec(this.responseURL);
+                    regExTagsMatch.lastIndex = 0;
+
                     if(tagResult){
                         if(tagResult?.groups?.tag_name){
                             tagName = tagResult.groups.tag_name;
@@ -510,20 +520,38 @@ function main(): void {
                 } else if(this.responseURL.includes('/api/v1/locations/web_info')){ // Location
                     let locationId: undefined | string;
                     const locationRes = regExLocationMatch.exec(this.responseURL);
+                    regExLocationMatch.lastIndex = 0;
+
                     if(locationRes){
                         if(locationRes?.groups?.location_id){
                             locationId = locationRes.groups.location_id
                         }
                     }
                     parseResponse(this.responseText, 'section', sourceString(
-                        "location",
+                        "tag",
                         locationId
+                    ));
+                } else if(this.responseURL.includes('/api/v1/fbsearch/web/top_serp')){ // Tag - New
+                    let tagName: undefined | string;
+                    const locationRes = regExTagNewMatch.exec(this.responseURL);
+                    regExTagNewMatch.lastIndex = 0;
+
+                    if(locationRes){
+                        if(locationRes?.groups?.tag_name){
+                            tagName = locationRes.groups.tag_name
+                        }
+                    }
+                    parseResponse(this.responseText, 'section', sourceString(
+                        "tag",
+                        tagName
                     ));
                 } else if(
                     this.responseURL.match(regExLocationFetchMore) // Location Fetch More
                 ){
                     let locationId: undefined | string;
                     const locationRes = regExLocationFetchMore.exec(this.responseURL);
+                    regExLocationFetchMore.lastIndex = 0;
+
                     if(locationRes){
                         if(locationRes?.groups?.location_id){
                             locationId = locationRes.groups.location_id
@@ -542,6 +570,8 @@ function main(): void {
                     parseResponse(this.responseText, 'explore', 'explore')
                 }else {
                     const resultFollowers = regExMatchFollowers.exec(this.responseURL);
+                    regExMatchFollowers.lastIndex = 0;
+
                     if(resultFollowers){
                         const profileId = resultFollowers?.groups?.profile_id;
                         if(profileId){
@@ -562,6 +592,8 @@ function main(): void {
                         }
                     }else{
                         const resultFollowing = regExMatchFollowing.exec(this.responseURL);
+                        regExMatchFollowing.lastIndex = 0;
+
                         if(resultFollowing){
                             const profileId = resultFollowing?.groups?.profile_id;
                             if(profileId){
