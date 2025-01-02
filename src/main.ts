@@ -269,10 +269,15 @@ function processResponse(dataGraphQL: any, source?: string): void{
     const toCheck: any[] = [];
     
     data.forEach(sectionNode=>{
-        const mediaNodes = sectionNode?.layout_content?.medias
+        const mediaNodes = sectionNode?.layout_content?.medias;
 
         if(mediaNodes && mediaNodes.length>0){
             toCheck.push(...mediaNodes)
+        }
+
+        const mediaNodes2 = sectionNode?.layout_content?.fill_items;
+        if(mediaNodes2 && mediaNodes2.length>0){
+            toCheck.push(...mediaNodes2)
         }
     });
 

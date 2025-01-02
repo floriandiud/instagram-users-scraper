@@ -978,10 +978,14 @@ function processResponse(dataGraphQL, source) {
   }
   const toCheck = [];
   data.forEach((sectionNode) => {
-    var _a2;
+    var _a2, _b2;
     const mediaNodes = (_a2 = sectionNode == null ? void 0 : sectionNode.layout_content) == null ? void 0 : _a2.medias;
     if (mediaNodes && mediaNodes.length > 0) {
       toCheck.push(...mediaNodes);
+    }
+    const mediaNodes2 = (_b2 = sectionNode == null ? void 0 : sectionNode.layout_content) == null ? void 0 : _b2.fill_items;
+    if (mediaNodes2 && mediaNodes2.length > 0) {
+      toCheck.push(...mediaNodes2);
     }
   });
   if (toCheck.length === 0) {
