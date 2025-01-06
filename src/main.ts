@@ -237,6 +237,9 @@ function processResponse(dataGraphQL: any, source?: string): void{
         if(dataGraphQL?.data?.top?.sections){
             data.push(...dataGraphQL?.data?.top?.sections)
         }
+        if(dataGraphQL?.data?.xdt_location_get_web_info_tab?.edges){
+            data.push(...dataGraphQL?.data?.xdt_location_get_web_info_tab?.edges)
+        }
     } else if(dataGraphQL?.media_grid?.sections){ // Place/Tag
         data = dataGraphQL?.media_grid?.sections;
     } else if(dataGraphQL?.native_location_data){ // Place
@@ -279,6 +282,10 @@ function processResponse(dataGraphQL: any, source?: string): void{
         if(mediaNodes2 && mediaNodes2.length>0){
             toCheck.push(...mediaNodes2)
         }
+
+        if(sectionNode?.node){
+            toCheck.push(sectionNode?.node)
+        }
     });
 
     if(toCheck.length===0){
@@ -288,7 +295,10 @@ function processResponse(dataGraphQL: any, source?: string): void{
     let sourceClean = sourceImproved || source || sourceGlobal;
 
     const membersData = toCheck.map((node)=>{
-        const media = node?.media;
+        let media = node?.media;
+        if(!media && node['__typename'] == "XDTMediaDict"){
+            media = node;
+        }
         if(!media){
             return null
         }
@@ -318,6 +328,14 @@ function processResponse(dataGraphQL: any, source?: string): void{
             fullName: full_name,
             isPrivate: is_private,
             pictureUrl: profile_pic_url
+        }
+        if(result.isPrivate == null){
+            if(media?.user){
+                // Get info from user is not available (for Explore section)
+                if(typeof(media.user['is_private'])!=="undefined"){
+                    result['isPrivate'] = media.user['is_private']
+                }
+            }
         }
         if(location){
             result.location = location
@@ -490,17 +508,21 @@ function main(): void {
     buildCTABtns()
 
     // Watch API calls to find GraphQL responses to parse
-    const regExTagsMatch = /\/api\/v1\/tags\/web_info\/\?tag_name=(?<tag_name>[\w|_|-]+)/gi;
-    const regExLocationMatch = /\/api\/v1\/locations\/web_info\/?location_id=(?<location_id>[\w|_|-]+)/gi;
+    const regExTagsMatch = /\/api\/v1\/tags\/web_info\/\?tag_name=(?<tag_name>[\w|_|-]+)/i;
+    const regExLocationMatch = /\/api\/v1\/locations\/web_info\/?location_id=(?<location_id>[\w|_|-]+)/i;
 
-    const regExTagNewMatch = /\/api\/v1\/fbsearch\/web\/top_serp\/\?(?:[\w|_|-|&|=]+)query=(?<tag_name>[\w|_|-|%]+)/gi;
+    const regExTagNewMatch = /\/api\/v1\/fbsearch\/web\/top_serp\/\?(?:[\w|_|-|&|=]+)query=(?<tag_name>[\w|_|-|%]+)/i;
     
     // FetchMore
-    const regExLocationFetchMore = /\/api\/v1\/locations\/(?<location_id>[\w|\d]+)\/sections\//gi
+    const regExLocationFetchMore = /\/api\/v1\/locations\/(?<location_id>[\w|\d]+)\/sections\//i
 
     // GenericMore
-    const regExFetchMoreMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//gi
+    const regExFetchMoreMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//i
 
+    // Explore
+    const regLocationSlug = /explore\/locations\/(\d+)\/(?<location_slug>[\w|-]+)\/?/i
+
+    // Followers/Following
     const regExMatchFollowers = /\/api\/v1\/friendships\/(?<profile_id>\d+)\/followers\//i; // Remove g flag to reset index
     const regExMatchFollowing = /\/api\/v1\/friendships\/(?<profile_id>\d+)\/following\//i; // Remove g flag to reset index
     let send = XMLHttpRequest.prototype.send;
@@ -511,7 +533,6 @@ function main(): void {
                 if(this.responseURL.includes('/api/v1/tags/web_info')){ // Tag
                     let tagName: undefined| string;
                     const tagResult = regExTagsMatch.exec(this.responseURL);
-                    regExTagsMatch.lastIndex = 0;
 
                     if(tagResult){
                         if(tagResult?.groups?.tag_name){
@@ -525,7 +546,6 @@ function main(): void {
                 } else if(this.responseURL.includes('/api/v1/locations/web_info')){ // Location
                     let locationId: undefined | string;
                     const locationRes = regExLocationMatch.exec(this.responseURL);
-                    regExLocationMatch.lastIndex = 0;
 
                     if(locationRes){
                         if(locationRes?.groups?.location_id){
@@ -536,10 +556,23 @@ function main(): void {
                         "tag",
                         locationId
                     ));
+                } else if(this.responseURL.includes('/graphql/query')){ // Explore Location
+                    let locationSlug: undefined | string;
+                    
+                    const locationRes = regLocationSlug.exec(window.location.href);
+
+                    if(locationRes){
+                        if(locationRes?.groups?.location_slug){
+                            locationSlug = locationRes.groups.location_slug;
+                            parseResponse(this.responseText, 'section', sourceString(
+                                "tag",
+                                locationSlug
+                            ));
+                        }
+                    }
                 } else if(this.responseURL.includes('/api/v1/fbsearch/web/top_serp')){ // Tag - New
                     let tagName: undefined | string;
                     const locationRes = regExTagNewMatch.exec(this.responseURL);
-                    regExTagNewMatch.lastIndex = 0;
 
                     if(locationRes){
                         if(locationRes?.groups?.tag_name){

@@ -937,7 +937,7 @@ function sourceString(sourceType, value) {
   }
 }
 function processResponse(dataGraphQL, source) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C;
   let data;
   let sourceImproved = null;
   if (dataGraphQL == null ? void 0 : dataGraphQL.data) {
@@ -949,27 +949,30 @@ function processResponse(dataGraphQL, source) {
     if ((_g = (_f = dataGraphQL == null ? void 0 : dataGraphQL.data) == null ? void 0 : _f.top) == null ? void 0 : _g.sections) {
       data.push(...(_i = (_h = dataGraphQL == null ? void 0 : dataGraphQL.data) == null ? void 0 : _h.top) == null ? void 0 : _i.sections);
     }
-  } else if ((_j = dataGraphQL == null ? void 0 : dataGraphQL.media_grid) == null ? void 0 : _j.sections) {
-    data = (_k = dataGraphQL == null ? void 0 : dataGraphQL.media_grid) == null ? void 0 : _k.sections;
+    if ((_k = (_j = dataGraphQL == null ? void 0 : dataGraphQL.data) == null ? void 0 : _j.xdt_location_get_web_info_tab) == null ? void 0 : _k.edges) {
+      data.push(...(_m = (_l = dataGraphQL == null ? void 0 : dataGraphQL.data) == null ? void 0 : _l.xdt_location_get_web_info_tab) == null ? void 0 : _m.edges);
+    }
+  } else if ((_n = dataGraphQL == null ? void 0 : dataGraphQL.media_grid) == null ? void 0 : _n.sections) {
+    data = (_o = dataGraphQL == null ? void 0 : dataGraphQL.media_grid) == null ? void 0 : _o.sections;
   } else if (dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) {
-    if ((_m = (_l = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _l.location_info) == null ? void 0 : _m.name) {
+    if ((_q = (_p = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _p.location_info) == null ? void 0 : _q.name) {
       const locationName = dataGraphQL.native_location_data.location_info.name;
       saveLocationName(
-        (_o = (_n = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _n.location_info) == null ? void 0 : _o.location_id,
+        (_s = (_r = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _r.location_info) == null ? void 0 : _s.location_id,
         locationName
       );
       sourceImproved = sourceString(
         "location",
-        (_q = (_p = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _p.location_info) == null ? void 0 : _q.location_id
+        (_u = (_t = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _t.location_info) == null ? void 0 : _u.location_id
       );
       sourceGlobal = sourceImproved;
     }
     data = [];
-    if ((_s = (_r = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _r.ranked) == null ? void 0 : _s.sections) {
-      data.push(...(_u = (_t = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _t.ranked) == null ? void 0 : _u.sections);
+    if ((_w = (_v = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _v.ranked) == null ? void 0 : _w.sections) {
+      data.push(...(_y = (_x = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _x.ranked) == null ? void 0 : _y.sections);
     }
-    if ((_w = (_v = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _v.recent) == null ? void 0 : _w.sections) {
-      data.push(...(_y = (_x = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _x.recent) == null ? void 0 : _y.sections);
+    if ((_A = (_z = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _z.recent) == null ? void 0 : _A.sections) {
+      data.push(...(_C = (_B = dataGraphQL == null ? void 0 : dataGraphQL.native_location_data) == null ? void 0 : _B.recent) == null ? void 0 : _C.sections);
     }
   } else if (dataGraphQL == null ? void 0 : dataGraphQL.sections) {
     data = dataGraphQL == null ? void 0 : dataGraphQL.sections;
@@ -987,6 +990,9 @@ function processResponse(dataGraphQL, source) {
     if (mediaNodes2 && mediaNodes2.length > 0) {
       toCheck.push(...mediaNodes2);
     }
+    if (sectionNode == null ? void 0 : sectionNode.node) {
+      toCheck.push(sectionNode == null ? void 0 : sectionNode.node);
+    }
   });
   if (toCheck.length === 0) {
     return;
@@ -994,7 +1000,10 @@ function processResponse(dataGraphQL, source) {
   let sourceClean = sourceImproved || source || sourceGlobal;
   const membersData = toCheck.map((node) => {
     var _a2, _b2;
-    const media = node == null ? void 0 : node.media;
+    let media = node == null ? void 0 : node.media;
+    if (!media && node["__typename"] == "XDTMediaDict") {
+      media = node;
+    }
     if (!media) {
       return null;
     }
@@ -1020,6 +1029,13 @@ function processResponse(dataGraphQL, source) {
       isPrivate: is_private,
       pictureUrl: profile_pic_url
     };
+    if (result.isPrivate == null) {
+      if (media == null ? void 0 : media.user) {
+        if (typeof media.user["is_private"] !== "undefined") {
+          result["isPrivate"] = media.user["is_private"];
+        }
+      }
+    }
     if (location) {
       result.location = location;
     }
@@ -1155,22 +1171,22 @@ async function quickProfileIdLookup(profileId) {
 }
 function main() {
   buildCTABtns();
-  const regExTagsMatch = /\/api\/v1\/tags\/web_info\/\?tag_name=(?<tag_name>[\w|_|-]+)/gi;
-  const regExLocationMatch = /\/api\/v1\/locations\/web_info\/?location_id=(?<location_id>[\w|_|-]+)/gi;
-  const regExTagNewMatch = /\/api\/v1\/fbsearch\/web\/top_serp\/\?(?:[\w|_|-|&|=]+)query=(?<tag_name>[\w|_|-|%]+)/gi;
-  const regExLocationFetchMore = /\/api\/v1\/locations\/(?<location_id>[\w|\d]+)\/sections\//gi;
-  const regExFetchMoreMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//gi;
+  const regExTagsMatch = /\/api\/v1\/tags\/web_info\/\?tag_name=(?<tag_name>[\w|_|-]+)/i;
+  const regExLocationMatch = /\/api\/v1\/locations\/web_info\/?location_id=(?<location_id>[\w|_|-]+)/i;
+  const regExTagNewMatch = /\/api\/v1\/fbsearch\/web\/top_serp\/\?(?:[\w|_|-|&|=]+)query=(?<tag_name>[\w|_|-|%]+)/i;
+  const regExLocationFetchMore = /\/api\/v1\/locations\/(?<location_id>[\w|\d]+)\/sections\//i;
+  const regExFetchMoreMatch = /\/api\/v1\/[\w|\d|\/]+\/sections\//i;
+  const regLocationSlug = /explore\/locations\/(\d+)\/(?<location_slug>[\w|-]+)\/?/i;
   const regExMatchFollowers = /\/api\/v1\/friendships\/(?<profile_id>\d+)\/followers\//i;
   const regExMatchFollowing = /\/api\/v1\/friendships\/(?<profile_id>\d+)\/following\//i;
   let send = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function() {
     this.addEventListener("readystatechange", function() {
-      var _a, _b, _c, _d, _e, _f;
+      var _a, _b, _c, _d, _e, _f, _g;
       if (this.readyState === 4) {
         if (this.responseURL.includes("/api/v1/tags/web_info")) {
           let tagName;
           const tagResult = regExTagsMatch.exec(this.responseURL);
-          regExTagsMatch.lastIndex = 0;
           if (tagResult) {
             if ((_a = tagResult == null ? void 0 : tagResult.groups) == null ? void 0 : _a.tag_name) {
               tagName = tagResult.groups.tag_name;
@@ -1183,7 +1199,6 @@ function main() {
         } else if (this.responseURL.includes("/api/v1/locations/web_info")) {
           let locationId;
           const locationRes = regExLocationMatch.exec(this.responseURL);
-          regExLocationMatch.lastIndex = 0;
           if (locationRes) {
             if ((_b = locationRes == null ? void 0 : locationRes.groups) == null ? void 0 : _b.location_id) {
               locationId = locationRes.groups.location_id;
@@ -1193,12 +1208,23 @@ function main() {
             "tag",
             locationId
           ));
+        } else if (this.responseURL.includes("/graphql/query")) {
+          let locationSlug;
+          const locationRes = regLocationSlug.exec(window.location.href);
+          if (locationRes) {
+            if ((_c = locationRes == null ? void 0 : locationRes.groups) == null ? void 0 : _c.location_slug) {
+              locationSlug = locationRes.groups.location_slug;
+              parseResponse(this.responseText, "section", sourceString(
+                "tag",
+                locationSlug
+              ));
+            }
+          }
         } else if (this.responseURL.includes("/api/v1/fbsearch/web/top_serp")) {
           let tagName;
           const locationRes = regExTagNewMatch.exec(this.responseURL);
-          regExTagNewMatch.lastIndex = 0;
           if (locationRes) {
-            if ((_c = locationRes == null ? void 0 : locationRes.groups) == null ? void 0 : _c.tag_name) {
+            if ((_d = locationRes == null ? void 0 : locationRes.groups) == null ? void 0 : _d.tag_name) {
               tagName = locationRes.groups.tag_name;
             }
           }
@@ -1211,7 +1237,7 @@ function main() {
           const locationRes = regExLocationFetchMore.exec(this.responseURL);
           regExLocationFetchMore.lastIndex = 0;
           if (locationRes) {
-            if ((_d = locationRes == null ? void 0 : locationRes.groups) == null ? void 0 : _d.location_id) {
+            if ((_e = locationRes == null ? void 0 : locationRes.groups) == null ? void 0 : _e.location_id) {
               locationId = locationRes.groups.location_id;
             }
           }
@@ -1227,7 +1253,7 @@ function main() {
           const resultFollowers = regExMatchFollowers.exec(this.responseURL);
           regExMatchFollowers.lastIndex = 0;
           if (resultFollowers) {
-            const profileId = (_e = resultFollowers == null ? void 0 : resultFollowers.groups) == null ? void 0 : _e.profile_id;
+            const profileId = (_f = resultFollowers == null ? void 0 : resultFollowers.groups) == null ? void 0 : _f.profile_id;
             if (profileId) {
               quickProfileIdLookup(profileId).then((username) => {
                 let profileInfo = `${profileId}`;
@@ -1248,7 +1274,7 @@ function main() {
             const resultFollowing = regExMatchFollowing.exec(this.responseURL);
             regExMatchFollowing.lastIndex = 0;
             if (resultFollowing) {
-              const profileId = (_f = resultFollowing == null ? void 0 : resultFollowing.groups) == null ? void 0 : _f.profile_id;
+              const profileId = (_g = resultFollowing == null ? void 0 : resultFollowing.groups) == null ? void 0 : _g.profile_id;
               if (profileId) {
                 quickProfileIdLookup(profileId).then((username) => {
                   let profileInfo = `${profileId}`;
